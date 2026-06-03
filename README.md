@@ -267,6 +267,7 @@ USC. For information on contributing to the repo, see
 - [Efstathios Siatras](https://siatras.com/)
 - [Milo Brontesi](https://github.com/zibasPk)
 - [Stefanos Nikolaidis](https://stefanosnikolaidis.net)
+- [Alejandro Marrero](https://github.com/amarrerod)
 
 We thank [Amy K. Hoover](http://amykhoover.com/) and
 [Julian Togelius](http://julian.togelius.com/) for their contributions deriving

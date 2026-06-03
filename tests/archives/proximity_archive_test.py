@@ -865,3 +865,28 @@ def test_add_novel_and_not_novel_no_improve_bug():
         objective_batch=[10.0, 10.0],
         measures_batch=[[0, 0], [5.0, 5.0]],
     )
+
+
+def test_add_non_novel_solution_threshold_decay():
+    iterations = 5
+    initial_threshold = 1.0
+    archive = ProximityArchive(
+        solution_dim=3,
+        measure_dim=2,
+        k_neighbors=1,
+        novelty_threshold=initial_threshold,
+        initial_capacity=1,
+        threshold_decay=0.5,
+        iterations_without_imp=iterations,
+    )
+    assert_allclose(archive.novelty_threshold, 1.0)
+    archive.add_single([1, 2, 3], None, [0, 0])
+
+    for _ in range(iterations):
+        # Should not be added since threshold is 1.0.
+        add_info = archive.add_single([1, 2, 3], None, [0.5, 0])
+        assert add_info["status"] == 0
+        assert_allclose(add_info["novelty"], 0.5)
+
+    assert_archive_elites(archive, 1, measures_batch=[[0, 0]])
+    assert_allclose(archive.novelty_threshold, 0.5)

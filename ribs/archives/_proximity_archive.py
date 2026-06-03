@@ -102,6 +102,16 @@ class ProximityArchive(ArchiveBase):
             *subtracted* from all objectives in the archive, e.g., if your objectives go
             as low as -300, pass in -300 so that each objective will be transformed as
             ``objective - (-300)``.
+        iterations_without_imp: Maximum number of iterations without inserting novel
+            solutions, before decreasing the ``novelty_threshold`` by a factor of
+            ``threshold_decay``. This is an optional parameter that by
+            default is set to None, which means that the ``novelty_threshold``
+            is not updated during the evolution.
+        threshold_decay: Decay factor to reduce the ``novelty_treshold`` if there were
+            ``iterations_without_imp`` iterations without inserting novelty solutions.
+            This is a optional float value in the range [0.0, 1.0]. Default is set to
+            None, which means that the ``novelty_threshold`` is not updated during
+            the evolution.
         seed: Value to seed the random number generator. Set to None to avoid a fixed
             seed.
         solution_dtype: Data type of the solutions. Defaults to float64 (numpy's default
@@ -140,6 +150,8 @@ class ProximityArchive(ArchiveBase):
         local_competition: bool = False,
         initial_capacity: Int = 128,
         qd_score_offset: Float = 0.0,
+        iterations_without_imp: Int | None = None,
+        threshold_decay: Float | None = None,
         seed: Int | None = None,
         solution_dtype: DTypeLike = None,
         objective_dtype: DTypeLike = None,
@@ -179,6 +191,24 @@ class ProximityArchive(ArchiveBase):
         solution_dtype, objective_dtype, measures_dtype = parse_all_dtypes(
             dtype, solution_dtype, objective_dtype, measures_dtype, np
         )
+
+        # By default, threshold decay is not defined.
+        self._max_it_without_imp = None
+        if iterations_without_imp is not None:
+            if iterations_without_imp < 0:
+                raise ValueError(
+                    "iterations_without_imp must be either None or a positive integer."
+                )
+            if threshold_decay is None or (
+                threshold_decay < 0.0 or threshold_decay > 1.0
+            ):
+                raise ValueError(
+                    "If iterations_without_imp is not None, threshold decay must be a float in the range [0.0, 1.0]."
+                )
+            self._max_it_without_imp = int(iterations_without_imp)
+            self._threshold_decay = float(threshold_decay)
+            self._its_without_imp = 0
+
         self._store = ArrayStore(
             field_desc={
                 "solution": (self.solution_dim, solution_dtype),
@@ -480,6 +510,30 @@ class ProximityArchive(ArchiveBase):
             multiplier = 2 ** int(np.ceil(np.log2(new_size / self.capacity)))
             self._store.resize(multiplier * self.capacity)
 
+    def __maybe_update_threshold(self):
+        """Performs threshold decay.
+
+        After :attr:`iterations_without_imp` iterations without inserting
+        any new novel solution into the archive, the :attr:`novelty_threshold`
+        is decreased to continue inserting new solutions.
+        """
+        # If n_novel_enough == 0 it means that whether LC is True or not
+        # we have not inserted any novel solutions into the archive
+        # therefore, the number of iterations without any insertion must be updated
+        self._its_without_imp += 1
+        if self._its_without_imp == self._max_it_without_imp:
+            # Restart the counter and set the new threshold to max(0.0, threshold * decay)
+            self._its_without_imp = 0
+            new_threshold = np.max(
+                [
+                    0.0,
+                    self._novelty_threshold * self._threshold_decay,
+                ]
+            )
+            self._novelty_threshold = np.asarray(
+                new_threshold, dtype=self.dtypes["measures"]
+            )
+
     def add(
         self,
         solution: ArrayLike,
@@ -625,6 +679,9 @@ class ProximityArchive(ArchiveBase):
                     self._store.data("measures"), **self._kdtree_kwargs
                 )
 
+            if self._max_it_without_imp and n_novel_enough == 0:
+                self.__maybe_update_threshold()
+
             return add_info
 
         else:
@@ -754,6 +811,9 @@ class ProximityArchive(ArchiveBase):
                 self._cur_kd_tree = KDTree(
                     self._store.data("measures"), **self._kdtree_kwargs
                 )
+
+            if self._max_it_without_imp and n_novel_enough == 0:
+                self.__maybe_update_threshold()
 
             return add_info
 
