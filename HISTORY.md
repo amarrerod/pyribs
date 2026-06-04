@@ -15,7 +15,7 @@
 - Add `DDS-CNF` density method to `DensityArchive` ({pr}`691`, {pr}`707`)
 - Add PyTorch to ribs[all] deps ({pr}`692`)
 - Add `NSLCRanker` for Novelty Search with Local Competition ({pr}`690`)
-- Implements `novelty_threshold` decay in `ProximityArchive`({issue}`540`, {pr}`708`)
+- Implement `novelty_threshold` decay in `ProximityArchive` ({pr}`709`)
 
 #### Documentation
 
