@@ -104,14 +104,12 @@ class ProximityArchive(ArchiveBase):
             ``objective - (-300)``.
         iterations_without_imp: Maximum number of iterations without inserting novel
             solutions, before decreasing the ``novelty_threshold`` by a factor of
-            ``threshold_decay``. This is an optional parameter that by
-            default is set to None, which means that the ``novelty_threshold``
-            is not updated during the evolution.
+            ``threshold_decay``. This is an optional parameter that by default is set to
+            None, which means that the ``novelty_threshold`` is never updated.
         threshold_decay: Decay factor to reduce the ``novelty_treshold`` if there were
             ``iterations_without_imp`` iterations without inserting novelty solutions.
-            This is a optional float value in the range [0.0, 1.0]. Default is set to
-            None, which means that the ``novelty_threshold`` is not updated during
-            the evolution.
+            This is an optional float value in the range [0.0, 1.0]. The default is
+            None, which indicates that the ``novelty_threshold`` is never updated.
         seed: Value to seed the random number generator. Set to None to avoid a fixed
             seed.
         solution_dtype: Data type of the solutions. Defaults to float64 (numpy's default
