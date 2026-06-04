@@ -876,17 +876,81 @@ def test_add_non_novel_solution_threshold_decay():
         k_neighbors=1,
         novelty_threshold=initial_threshold,
         initial_capacity=1,
-        threshold_decay=0.5,
-        iterations_without_imp=iterations,
+        threshold_decay_rate=0.5,
+        threshold_decay_itrs=iterations,
     )
     assert_allclose(archive.novelty_threshold, 1.0)
     archive.add_single([1, 2, 3], None, [0, 0])
 
     for _ in range(iterations):
+        assert_allclose(archive.novelty_threshold, 1.0)
         # Should not be added since threshold is 1.0.
         add_info = archive.add_single([1, 2, 3], None, [0.5, 0])
         assert add_info["status"] == 0
         assert_allclose(add_info["novelty"], 0.5)
 
-    assert_archive_elites(archive, 1, measures_batch=[[0, 0]])
+    # At this point, novelty_threshold must have been updated to 0.5
     assert_allclose(archive.novelty_threshold, 0.5)
+    assert_archive_elites(archive, 1, measures_batch=[[0, 0]])
+
+
+def test_constant_addition_novel_no_decay():
+    # Test that the novelty_threshold keeps constant when adding novel solutions
+    iterations = 5
+    initial_threshold = 1.0
+    archive = ProximityArchive(
+        solution_dim=3,
+        measure_dim=2,
+        k_neighbors=1,
+        novelty_threshold=initial_threshold,
+        initial_capacity=1,
+        threshold_decay_itrs=iterations,
+        threshold_decay_rate=0.99,
+    )
+    assert_allclose(archive.novelty_threshold, 1.0)
+    inner_measures = np.arange(iterations)
+    new_measures = np.stack([inner_measures, inner_measures], axis=1)
+    for i in range(iterations):
+        add_info = archive.add_single([1, 2, 3], None, new_measures[i])
+        # The solution was added to the archive
+        assert add_info["status"] == 2
+        # The threshold must remain the same --> 1.0
+        assert_allclose(archive.novelty_threshold, 1)
+
+    assert_archive_elites(archive, iterations, measures_batch=new_measures)
+    assert_allclose(archive.novelty_threshold, 1.0)
+
+
+def test_mix_iterations_add_with_threshold_decay():
+    iterations = 5
+    initial_threshold = 1.0
+    archive = ProximityArchive(
+        solution_dim=3,
+        measure_dim=2,
+        k_neighbors=1,
+        novelty_threshold=initial_threshold,
+        initial_capacity=1,
+        threshold_decay_itrs=iterations,
+        threshold_decay_rate=0.99,
+    )
+    assert_allclose(archive.novelty_threshold, 1.0)
+
+    # Insert and initial solution with measure [0,0] to have an reference
+    # thus, not_novel_measure should not be included anytime
+    not_novel_measure = [0.5, 0]
+
+    for i in range(iterations * 2):
+        to_insert = np.asarray([i, i]) if i % 2 == 0 else not_novel_measure
+        add_info = archive.add_single([1, 2, 3], None, to_insert)
+        if i % 2 == 0:
+            # We should have inserted a novel solution
+            # The solution was added to the archive
+            assert add_info["status"] == 2
+            # The threshold must remain the same --> 1.0
+            assert_allclose(archive.novelty_threshold, 1)
+        else:
+            # This duplicated measure was not inserted
+            assert add_info["status"] == 0
+            assert_allclose(archive.novelty_threshold, 1)
+
+    assert_allclose(archive.novelty_threshold, 1.0)
