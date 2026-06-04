@@ -534,7 +534,6 @@ class ProximityArchive(ArchiveBase):
         # we have not inserted any novel solutions into the archive
         # therefore, the number of iterations without any insertion must be updated
         # Otherwise, we restart the counter
-        print(self._its_without_imp, n_novel_enough, self._novelty_threshold)
 
         if n_novel_enough == 0:
             self._its_without_imp += 1
