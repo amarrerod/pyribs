@@ -508,7 +508,7 @@ class ProximityArchive(ArchiveBase):
             multiplier = 2 ** int(np.ceil(np.log2(new_size / self.capacity)))
             self._store.resize(multiplier * self.capacity)
 
-    def __maybe_update_threshold(self):
+    def _maybe_update_threshold(self):
         """Performs threshold decay.
 
         After :attr:`iterations_without_imp` iterations without inserting
@@ -678,7 +678,7 @@ class ProximityArchive(ArchiveBase):
                 )
 
             if self._max_it_without_imp and n_novel_enough == 0:
-                self.__maybe_update_threshold()
+                self._maybe_update_threshold()
 
             return add_info
 
@@ -811,7 +811,7 @@ class ProximityArchive(ArchiveBase):
                 )
 
             if self._max_it_without_imp and n_novel_enough == 0:
-                self.__maybe_update_threshold()
+                self._maybe_update_threshold()
 
             return add_info
 
