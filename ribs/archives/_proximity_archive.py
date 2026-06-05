@@ -522,31 +522,23 @@ class ProximityArchive(ArchiveBase):
     def _maybe_update_threshold(self, n_novel_enough: int) -> None:
         """Performs threshold decay if needed.
 
-        After :attr:`threshold_decay_itrs` calls to `add` without inserting any new
-        novel solution into the archive, the :attr:`novelty_threshold` is decreased to
-        continue inserting new solutions.
-
         Args:
             n_novel_enough (int): Number of newly novel solutions added to the archive.
-                If this is non-zero, we restart the number of calls to `add` without
-                inserting novel solutions. Otherwise, the counter is incremented by one.
-                When the number of calls reaches the maximum allowed,
-                :attr:`novelty_threshold` is decreased and the number of calls is
-                restarted.
         """
-        # Threshold decay has not been activated.
+        # Threshold decay has not been activated, so do nothing.
         if self._threshold_decay_rate is None:
             return
 
-        # If n_novel_enough == 0 it means that, whether local_competition is True or
-        # not, we have not inserted any novel solutions into the archive. Therefore, the
-        # number of iterations without any insertion must be updated. Otherwise, we
-        # restart the counter.
         if n_novel_enough == 0:
+            # If n_novel_enough == 0, it means that, whether local_competition is True
+            # or not, we have not inserted any novel solutions into the archive. Thus,
+            # the number of iterations without novel solutions is updated.
             self._itrs_without_novel += 1
+
             if self._itrs_without_novel >= self._threshold_decay_itrs:
-                # Restart the counter and set the new threshold to max(_threshold_decay_min, threshold * decay)
-                self._itrs_without_novel = 0
+                # If there have been at least `threshold_decay_itrs` calls to `add`
+                # without inserting any novel solutions, then we update the threshold to
+                # max(threshold_decay_min, threshold * decay).
                 new_threshold = np.max(
                     [
                         self._threshold_decay_min,
@@ -556,7 +548,11 @@ class ProximityArchive(ArchiveBase):
                 self._novelty_threshold = np.asarray(
                     new_threshold, dtype=self.dtypes["measures"]
                 )
+
+                # Restart the counter since the threshold was just updated.
+                self._itrs_without_novel = 0
         else:
+            # If n_novel_enough is not 0, then we restart the counter.
             self._itrs_without_novel = 0
 
     def add(
