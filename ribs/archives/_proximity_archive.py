@@ -519,26 +519,29 @@ class ProximityArchive(ArchiveBase):
             multiplier = 2 ** int(np.ceil(np.log2(new_size / self.capacity)))
             self._store.resize(multiplier * self.capacity)
 
-    def _maybe_update_threshold(self, n_novel_enough: int):
-        """Performs threshold decay.
+    def _maybe_update_threshold(self, n_novel_enough: int) -> None:
+        """Performs threshold decay if needed.
 
-        After :attr:`threshold_decay_itrs` calls to `add` without inserting
-        any new novel solution into the archive, the :attr:`novelty_threshold`
-        is decreased to continue inserting new solutions.
+        After :attr:`threshold_decay_itrs` calls to `add` without inserting any new
+        novel solution into the archive, the :attr:`novelty_threshold` is decreased to
+        continue inserting new solutions.
 
         Args:
-            n_novel_enough (int): Number of newly novel solution added to the archive.
-                If n_novel_enough is zero, we restart the number of calls to `add`
-                without inserting novel solutions. Otherwise, the counter is incremented
-                by one. When the number of calls reaches the maximum allowed,
-                :attr:`novelty_threshold` is decreased and the number of calls
+            n_novel_enough (int): Number of newly novel solutions added to the archive.
+                If this is non-zero, we restart the number of calls to `add` without
+                inserting novel solutions. Otherwise, the counter is incremented by one.
+                When the number of calls reaches the maximum allowed,
+                :attr:`novelty_threshold` is decreased and the number of calls is
                 restarted.
         """
-        # If n_novel_enough == 0 it means that whether LC is True or not
-        # we have not inserted any novel solutions into the archive
-        # therefore, the number of iterations without any insertion must be updated
-        # Otherwise, we restart the counter
+        # Threshold decay has not been activated.
+        if self._threshold_decay_rate is None:
+            return
 
+        # If n_novel_enough == 0 it means that, whether local_competition is True or
+        # not, we have not inserted any novel solutions into the archive. Therefore, the
+        # number of iterations without any insertion must be updated. Otherwise, we
+        # restart the counter.
         if n_novel_enough == 0:
             self._itrs_without_novel += 1
             if self._itrs_without_novel >= self._threshold_decay_itrs:
@@ -701,9 +704,7 @@ class ProximityArchive(ArchiveBase):
                     self._store.data("measures"), **self._kdtree_kwargs
                 )
 
-            if self._threshold_decay_itrs:
-                self._maybe_update_threshold(n_novel_enough)
-
+            self._maybe_update_threshold(n_novel_enough)
             return add_info
 
         else:
@@ -834,9 +835,7 @@ class ProximityArchive(ArchiveBase):
                     self._store.data("measures"), **self._kdtree_kwargs
                 )
 
-            if self._threshold_decay_itrs:
-                self._maybe_update_threshold(n_novel_enough)
-
+            self._maybe_update_threshold(n_novel_enough)
             return add_info
 
     def add_single(
