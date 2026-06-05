@@ -102,16 +102,17 @@ class ProximityArchive(ArchiveBase):
             *subtracted* from all objectives in the archive, e.g., if your objectives go
             as low as -300, pass in -300 so that each objective will be transformed as
             ``objective - (-300)``.
-        threshold_decay_itrs: Maximum number of call to ``add`` without inserting novel
-            solutions, before decreasing the ``novelty_threshold`` by a factor of
-            ``threshold_decay_rate``. This is an optional parameter that by default is set to
-            None, which means that the ``novelty_threshold`` is never updated.
-        threshold_decay_rate: Decay factor to reduce the ``novelty_treshold`` if there were
-            ``threshold_decay_itrs`` iterations without inserting novelty solutions.
-            This is an optional float value in the range [0.0, 1.0]. The default is
-            None, which indicates that the ``novelty_threshold`` is never updated.
-        threshold_decay_min: Minimum value for the ``novelty_treshold`` if threshold
-            decay is enabled. The default is 0.0.
+        threshold_decay_rate: Decay factor to reduce the ``novelty_threshold``. When
+            :meth:`add` is called ``threshold_decay_itrs`` times in a row without
+            inserting any novel solutions, the ``novelty_threshold`` is multiplied by
+            this rate. The default value is None, which indicates that there is no
+            decay. If passed in, it must be a float value in the range [0.0, 1.0].
+        threshold_decay_itrs: See ``threshold_decay_rate`` above. This parameter only
+            applies if ``threshold_decay_rate`` is set. The default value of 1 indicates
+            that the ``novelty_threshold`` will be decreased immediately after a call to
+            :meth:`add` has no solutions that are novel enough.
+        threshold_decay_min: Minimum value for the ``novelty_threshold`` if threshold
+            decay is enabled.
         seed: Value to seed the random number generator. Set to None to avoid a fixed
             seed.
         solution_dtype: Data type of the solutions. Defaults to float64 (numpy's default
@@ -150,8 +151,8 @@ class ProximityArchive(ArchiveBase):
         local_competition: bool = False,
         initial_capacity: Int = 128,
         qd_score_offset: Float = 0.0,
-        threshold_decay_itrs: Int | None = None,
         threshold_decay_rate: Float | None = None,
+        threshold_decay_itrs: Int = 1,
         threshold_decay_min: Float = 0.0,
         seed: Int | None = None,
         solution_dtype: DTypeLike = None,
@@ -192,29 +193,6 @@ class ProximityArchive(ArchiveBase):
         solution_dtype, objective_dtype, measures_dtype = parse_all_dtypes(
             dtype, solution_dtype, objective_dtype, measures_dtype, np
         )
-
-        # By default, threshold decay is not defined.
-        self._max_it_without_imp = None
-        if threshold_decay_itrs is not None:
-            if threshold_decay_itrs < 0:
-                raise ValueError(
-                    "threshold_decay_itrs must be either None or a positive integer."
-                )
-            if threshold_decay_rate is None or (
-                threshold_decay_rate <= 0.0 or threshold_decay_rate > 1.0
-            ):
-                raise ValueError(
-                    "If threshold_decay_itrs is not None, threshold decay must be a float in the range [0.0, 1.0]."
-                )
-            # The minimum could be 0.0
-            if threshold_decay_min < 0.0:
-                raise ValueError("threshold_decay_min must be a positive float value.")
-
-            self._max_it_without_imp = int(threshold_decay_itrs)
-            self._threshold_decay = float(threshold_decay_rate)
-            self._threshold_decay_min = float(threshold_decay_min)
-            self._its_without_imp = 0
-
         self._store = ArrayStore(
             field_desc={
                 "solution": (self.solution_dim, solution_dtype),
@@ -245,6 +223,31 @@ class ProximityArchive(ArchiveBase):
         self._objective_sum = None
         self._stats = None
         self._stats_reset()
+
+        # Set up threshold decay.
+        if threshold_decay_rate is None:
+            self._threshold_decay_rate = None
+            self._threshold_decay_itrs = None
+            self._threshold_decay_min = None
+            self._itrs_without_novel = None
+        else:
+            if threshold_decay_rate <= 0.0 or threshold_decay_rate > 1.0:
+                raise ValueError(
+                    "If passed in, threshold_decay_rate must be a float in the range [0.0, 1.0]."
+                )
+            if threshold_decay_itrs <= 0:
+                raise ValueError(
+                    "threshold_decay_itrs must be either None or a positive integer."
+                )
+            if threshold_decay_min < 0.0:
+                raise ValueError(
+                    "threshold_decay_min must be a non-negative float value."
+                )
+
+            self._threshold_decay_rate = float(threshold_decay_rate)
+            self._threshold_decay_itrs = int(threshold_decay_itrs)
+            self._threshold_decay_min = float(threshold_decay_min)
+            self._itrs_without_novel = 0
 
     ## Properties inherited from ArchiveBase ##
 
@@ -528,7 +531,8 @@ class ProximityArchive(ArchiveBase):
                 If n_novel_enough is zero, we restart the number of calls to `add`
                 without inserting novel solutions. Otherwise, the counter is incremented
                 by one. When the number of calls reaches the maximum allowed,
-                :attr:`novelty_threshold` is decreased and the number of calls restarted.
+                :attr:`novelty_threshold` is decreased and the number of calls
+                restarted.
         """
         # If n_novel_enough == 0 it means that whether LC is True or not
         # we have not inserted any novel solutions into the archive
@@ -536,21 +540,21 @@ class ProximityArchive(ArchiveBase):
         # Otherwise, we restart the counter
 
         if n_novel_enough == 0:
-            self._its_without_imp += 1
-            if self._its_without_imp == self._max_it_without_imp:
+            self._itrs_without_novel += 1
+            if self._itrs_without_novel >= self._threshold_decay_itrs:
                 # Restart the counter and set the new threshold to max(_threshold_decay_min, threshold * decay)
-                self._its_without_imp = 0
+                self._itrs_without_novel = 0
                 new_threshold = np.max(
                     [
                         self._threshold_decay_min,
-                        self._novelty_threshold * self._threshold_decay,
+                        self._novelty_threshold * self._threshold_decay_rate,
                     ]
                 )
                 self._novelty_threshold = np.asarray(
                     new_threshold, dtype=self.dtypes["measures"]
                 )
         else:
-            self._its_without_imp = 0
+            self._itrs_without_novel = 0
 
     def add(
         self,
@@ -697,7 +701,7 @@ class ProximityArchive(ArchiveBase):
                     self._store.data("measures"), **self._kdtree_kwargs
                 )
 
-            if self._max_it_without_imp:
+            if self._threshold_decay_itrs:
                 self._maybe_update_threshold(n_novel_enough)
 
             return add_info
@@ -830,7 +834,7 @@ class ProximityArchive(ArchiveBase):
                     self._store.data("measures"), **self._kdtree_kwargs
                 )
 
-            if self._max_it_without_imp:
+            if self._threshold_decay_itrs:
                 self._maybe_update_threshold(n_novel_enough)
 
             return add_info
