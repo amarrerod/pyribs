@@ -834,6 +834,7 @@ def test_lc_add_batch_replace_same_cell():
 
 
 def test_add_novel_and_not_novel_no_improve_bug():
+    """See https://github.com/icaros-usc/pyribs/pull/704/."""
     archive = ProximityArchive(
         solution_dim=3,
         measure_dim=2,
