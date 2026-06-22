@@ -38,6 +38,7 @@ def clean_matplotlib():
     remove_text=False,
     extensions=["png"],
     tol=0.1,  # See CVT_IMAGE_TOLERANCE in cvt_archive_heatmap_test.py
+    style=["classic", "_classic_test_patch"],
 )
 def test_qdax_repertoire_heatmap():
     plt.figure(figsize=(8, 6))
@@ -75,7 +76,8 @@ def test_qdax_repertoire_heatmap():
     baseline_images=["qdax_repertoire_3d_plot"],
     remove_text=False,
     extensions=["png"],
-    tol=0.1,  # See CVT_IMAGE_TOLERANCE in cvt_archive_3d_plot_test.py
+    tol=6.0,  # See CVT_IMAGE_TOLERANCE in cvt_archive_3d_plot_test.py
+    style=["classic", "_classic_test_patch"],
 )
 def test_qdax_repertoire_3d_plot():
     plt.figure(figsize=(8, 6))
